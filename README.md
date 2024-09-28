@@ -1,4 +1,4 @@
-# OLAF-Neighbourhood-Protocol
+# OLAF Neighbourhood Protocol Implementation
 >by Leo Nguyen and Bryan Van
 ## How to run server
 1. Head to directory where `main.py` is located.
