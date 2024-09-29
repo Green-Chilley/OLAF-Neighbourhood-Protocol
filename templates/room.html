@@ -1,5 +1,4 @@
-{% extends 'base.html' %}
-{% block content %}
+{% extends 'base.html' %} {% block content %}
 <body>
     <div class="message-box">
         <h2>Chat Room: {{code}}</h2>
@@ -17,6 +16,17 @@
             </button>
         </div>
     </div>
+
+    <script>
+        var input = document.getElementById("message");
+        input.addEventListener("keypress", function(event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            document.getElementById("send-btn").click();
+          }
+        });
+    </script>
+
     <script type="text/javascript">
         var socketio = io();
 
@@ -48,13 +58,6 @@
             socketio.emit("message", { data: message.value });
             message.value = "";
         };
-        var input = document.getElementById("myInput");
-        input.addEventListener("keypress", function(event) {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            document.getElementById("myBtn").click();
-          }
-        });
     </script>
     {% for msg in messages %}
         <script type="text/javascript">

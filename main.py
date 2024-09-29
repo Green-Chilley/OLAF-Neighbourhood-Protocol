@@ -56,6 +56,8 @@ def room():
     
     return render_template("room.html", code=room, messages=rooms[room]["messages"])
 
+
+# events
 @socketio.on("message")
 def message(data):
     room = session.get("room")
