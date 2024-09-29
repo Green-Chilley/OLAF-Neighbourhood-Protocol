@@ -8,3 +8,4 @@
 1. Open 2 tabs under the same url
 2. In one tab enter name and create room
 3. On the other tab, join the room using the room
+![image](https://github.com/user-attachments/assets/1eafd483-fadf-4033-8afa-739caa08d5b9)
