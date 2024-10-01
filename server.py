@@ -1,56 +1,65 @@
 from flask_socketio import SocketIO, join_room, leave_room, send, emit
-from flask import Flask, session
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import AES
-from Crypto.Hash import SHA256
-from Crypto.Signature import pkcs1_15
-from base64 import b64encode, b64decode
 import random
 from string import ascii_uppercase
-import json
+from flask import session
+from cryptography.hazmat.primitives import serialization
 
-app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO()
 
 rooms = {}
 
-# Generate unique room code
-def generate_unique_code(length=4):
+def generate_unique_code(length):
     while True:
-        code = ''.join(random.choices(ascii_uppercase, k=length))
+        code = ""
+        for _ in range(length):
+            code += random.choice(ascii_uppercase)
+        
         if code not in rooms:
-            return code
+            break
+        
+    return code
 
-@socketio.on('create_room')
-def handle_create_room(data):
-    name = data.get("name")
-    room = generate_unique_code()
-    rooms[room] = {"members": 0, "messages": []}
-    
-    session["room"] = room
-    session["name"] = name
-    join_room(room)
-    
-    rooms[room]["members"] += 1
-    send(f'{name} has created and joined room {room}', to=room)
-    print(f'{name} created room {room}')
+@socketio.on("connect")
+def connect(auth):
+    room = session.get("room")
+    name = session.get("name")
+    public_key = session.get("public_key")  # Public key sent from the client
 
-@socketio.on('join_room')
-def handle_join_room(data):
-    room = data.get("room")
-    name = data.get("name")
-    
+    if not room or not name:
+        print("Connection failed: room or name missing.")
+        return
     if room not in rooms:
-        emit('error', {"message": "Room does not exist"})
+        leave_room(room)
+        print(f"Room {room} does not exist, leaving room.")
         return
     
-    session["room"] = room
-    session["name"] = name
     join_room(room)
     
+    # Store the public key for this user after connection
+    if public_key:
+        if room in rooms:
+            rooms[room]["keys"][name] = public_key
+            print(f"Stored public key for {name} in room {room}:\n{public_key}")
+        else:
+            print(f"Room {room} does not exist.")
+    
+    send({"name": name, "message": "has entered the room"}, to=room)
     rooms[room]["members"] += 1
-    send(f'{name} has joined room {room}', to=room)
-    print(f'{name} joined room {room}')
+    print(f"{name} joined room {room}")
+
+@socketio.on("message")
+def message(data):
+    room = session.get("room")
+    if room not in rooms:
+        print(f"Message failed: room {room} does not exist.")
+        return
+    content = {
+        "name": session.get("name"),
+        "message": data["data"]
+    }
+    send(content, to=room)
+    rooms[room]["messages"].append(content)
+    print(f"{session.get('name')} said in room {room}: {data['data']}")
 
 @socketio.on("disconnect")
 def disconnect():
@@ -62,9 +71,7 @@ def disconnect():
         rooms[room]["members"] -= 1
         if rooms[room]["members"] <= 0:
             del rooms[room]
-    send(f'{name} has left the room', to=room)
-    print(f'{name} has left room {room}')
+            print(f"Room {room} deleted as it now has no members.")
+    send({"name": name, "message": "has left the room"}, to=room)
+    print(f"{name} has left the room {room}")
 
-# Other socket message handling...
-if __name__ == '__main__':
-    socketio.run(app)
