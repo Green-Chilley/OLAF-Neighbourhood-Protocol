@@ -8,3 +8,7 @@
 1. Open 2 tabs under the same url
 2. In one tab enter name and create room
 3. On the other tab, join the room using the room
+
+## Installations
+pip install pycryptodome
+pip install flack_socketio
