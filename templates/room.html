@@ -1,16 +1,12 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %}
+{% block content %}
+
 <body>
     <div class="message-box">
-        <h2>Chat Room: {{code}}</h2>
+        <h2>Chat Room: {{room}}</h2>
         <div class="messages" id="messages"></div>
         <div class="inputs">
-            <input 
-                type="text" 
-                rows="3" 
-                placeholder="Message" 
-                name="message" 
-                id="message" 
-            />
+            <input type="text" rows="3" placeholder="Message" name="message" id="message" />
             <button class="buttonRight" type="button" name="send" id="send-btn" onClick="sendMessage()">
                 Send
             </button>
@@ -18,18 +14,10 @@
     </div>
 
     <script>
-        var input = document.getElementById("message");
-        input.addEventListener("keypress", function(event) {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            document.getElementById("send-btn").click();
-          }
-        });
-    </script>
-
-    <script type="text/javascript">
         var socketio = io();
 
+        const room = "{{room}}";
+        const name = "{{name}}";
         const messages = document.getElementById("messages");
 
         const createMessage = (name, msg) => {
@@ -47,22 +35,29 @@
             messages.innerHTML += content;
         };
 
-        // listen for message event transmitted from flask that contains data
-        socketio.on("message", (data) => {
+        // Join the room
+        socketio.emit('join', { name: name, room: room });
+
+        // Listen for incoming messages
+        socketio.on('message', (data) => {
             createMessage(data.name, data.message);
-        })
+        });
 
         const sendMessage = () => {
-            const message = document.getElementById("message");
-            if (message.value == "") return;
-            socketio.emit("message", { data: message.value });
-            message.value = "";
+            const message = document.getElementById("message").value;
+            if (message == "") return;
+            socketio.emit('send_message', { name: name, room: room, message: message });
+            document.getElementById("message").value = "";
         };
+
+        // Enter key to send message
+        var input = document.getElementById("message");
+        input.addEventListener("keypress", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                document.getElementById("send-btn").click();
+            }
+        });
     </script>
-    {% for msg in messages %}
-        <script type="text/javascript">
-            createMessage("{{msg.name}}", "{{msg.message}}");
-        </script>
-    {% endfor %}
 </body>
 {% endblock %}

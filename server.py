@@ -23,6 +23,7 @@ def generate_unique_code(length=4):
 
 @socketio.on('create_room')
 def handle_create_room(data):
+    global rooms  # Declare 'rooms' as global to modify it
     name = data.get("name")
     room = generate_unique_code()
     rooms[room] = {"members": 0, "messages": []}
@@ -37,6 +38,7 @@ def handle_create_room(data):
 
 @socketio.on('join_room')
 def handle_join_room(data):
+    global rooms  # Declare 'rooms' as global to modify it
     room = data.get("room")
     name = data.get("name")
     
