@@ -2,9 +2,11 @@ from flask import Flask, render_template, request, session, redirect, url_for
 from flask_socketio import join_room, leave_room, send, SocketIO
 import random
 from string import ascii_uppercase
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
+import canonicaljson
+import base64
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "hjksa"
@@ -12,36 +14,16 @@ socketio = SocketIO(app)
 
 rooms = {}
 clients_public_keys = {}  # To store public keys of connected clients
-private_keys = {}  # In-memory storage for private keys (don't store in session)
+client_counters = {}      # To store the last counter value for each client
 
 def generate_unique_code(length):
     while True:
         code = ""
         for _ in range(length):
             code += random.choice(ascii_uppercase)
-        
         if code not in rooms:
             break
-        
     return code
-
-# Function to generate RSA key pair for the client
-def generate_rsa_key_pair():
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend()
-    )
-    public_key = private_key.public_key()
-    return private_key, public_key
-
-# Function to serialize the public key to PEM format
-def serialize_public_key(public_key):
-    pem = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    return pem.decode('utf-8')
 
 @app.route("/", methods=["POST", "GET"])
 def home():
@@ -65,11 +47,6 @@ def home():
         elif code not in rooms:
             return render_template("home.html", error="Room does not exist.", code=code, name=name)
         
-        # Generate RSA key pair and store the public key in session
-        private_key, public_key = generate_rsa_key_pair()
-        private_keys[name] = private_key  # Store private key in memory, associated with the client name
-        session["public_key_pem"] = serialize_public_key(public_key)  # Store public key PEM format in session
-        
         session["room"] = room
         session["name"] = name
         return redirect(url_for("room"))
@@ -86,31 +63,8 @@ def room():
         "room.html",
         code=room,
         messages=rooms[room]["messages"],
-        public_key_pem=session.get("public_key_pem")
     )
 
-# Handle client hello message
-@socketio.on("hello")
-def handle_hello(data):
-    room = session.get("room")
-    name = session.get("name")
-    public_key_pem = data.get("data", {}).get("public_key")
-
-    print(f"Received 'hello' event. Room: {room}, Name: {name}, Public Key: {public_key_pem}")
-
-    if not room or room not in rooms:
-        print(f"Error: Room '{room}' not found or not set.")
-        return
-    if not public_key_pem:
-        print(f"Error: Public key is missing from the 'hello' event.")
-        return
-
-    # Store the client's public key
-    clients_public_keys[name] = public_key_pem
-    print(f"Stored public key for {name}: {public_key_pem}")
-    send({"name": name, "message": "has shared their public key."}, to=room)
-
-# Send a hello message with public key when client connects
 @socketio.on("connect")
 def connect(auth):
     room = session.get("room")
@@ -125,24 +79,143 @@ def connect(auth):
     join_room(room)
     send({"name": name, "message": "has entered the room"}, to=room)
     rooms[room]["members"] += 1
+    print(f"{name} has entered the room {room}")
 
-    # Remove this block
-    # if public_key_pem:
-    #     print(f"Emitting 'hello' message for {name} with public key.")
-    #     socketio.emit("hello", {"public_key": public_key_pem}, to=room)
+@socketio.on("hello")
+def handle_hello(message_payload):
+    room = session.get("room")
+    name = session.get("name")
+
+    data = message_payload.get("data")
+    counter = message_payload.get("counter")
+    signature_b64 = message_payload.get("signature")
+
+    if not data or counter is None or not signature_b64:
+        print("Invalid hello message format.")
+        return
+
+    public_key_pem = data.get("public_key")
+    if not public_key_pem:
+        print("Public key missing in hello message.")
+        return
+
+    # Load public key
+    try:
+        public_key = serialization.load_pem_public_key(
+            public_key_pem.encode('utf-8'),
+            backend=default_backend()
+        )
+    except Exception as e:
+        print(f"Failed to load public key from {name}: {e}")
+        return
+
+    # Prepare data for verification with canonical JSON
+    data_string = canonicaljson.encode_canonical_json(data).decode('utf-8')
+    data_to_verify = (data_string + str(counter)).encode('utf-8')
+    signature = base64.b64decode(signature_b64)
+    print(f"Data to Verify for {name}: {data_string}{counter}")
+
+    # Verify signature
+    try:
+        public_key.verify(
+            signature,
+            data_to_verify,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=32
+            ),
+            hashes.SHA256()
+        )
+    except Exception as e:
+        print(f"Hello signature verification failed for {name}: {e}")
+        return
+
+    # Check the counter
+    last_counter = client_counters.get(name, 0)
+    if counter <= last_counter:
+        print(f"Replay attack detected or invalid counter in hello from {name}.")
+        return
+
+    # Update stored counter
+    client_counters[name] = counter
+
+    # Store the client's public key
+    clients_public_keys[name] = public_key_pem
+    print(f"Stored public key for {name}.")
+    send({"name": name, "message": "has shared their public key."}, to=room)
 
 @socketio.on("message")
-def message(data):
+def handle_message(message_payload):
     room = session.get("room")
+    name = session.get("name")
+
     if room not in rooms:
         return
+
+    print(f"handle_message called from {name}")
+
+    data = message_payload.get("data")
+    counter = message_payload.get("counter")
+    signature_b64 = message_payload.get("signature")
+
+    if not data or counter is None or not signature_b64:
+        print("Invalid message format.")
+        return
+
+    # Retrieve sender's public key
+    public_key_pem = clients_public_keys.get(name)
+    if not public_key_pem:
+        print(f"No public key found for {name}")
+        return
+
+    # Load public key
+    try:
+        public_key = serialization.load_pem_public_key(
+            public_key_pem.encode('utf-8'),
+            backend=default_backend()
+        )
+    except Exception as e:
+        print(f"Failed to load public key for {name}: {e}")
+        return
+
+    # Prepare data for verification with canonical JSON
+    data_string = canonicaljson.encode_canonical_json(data).decode('utf-8')
+    data_to_verify = (data_string + str(counter)).encode('utf-8')
+    signature = base64.b64decode(signature_b64)
+    print(f"Data to Verify for {name}: {data_string}{counter}")
+
+    # Verify signature
+    try:
+        public_key.verify(
+            signature,
+            data_to_verify,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=32
+            ),
+            hashes.SHA256()
+        )
+    except Exception as e:
+        print(f"Signature verification failed for {name}: {e}")
+        return
+
+    # Check the counter
+    last_counter = client_counters.get(name, 0)
+    if counter <= last_counter:
+        print(f"Replay attack detected or invalid counter from {name}.")
+        return
+
+    # Update stored counter
+    client_counters[name] = counter
+
+    # Process the message
     content = {
-        "name": session.get("name"),
-        "message": data["data"]
+        "name": name,
+        "message": data.get("message")
     }
     send(content, to=room)
     rooms[room]["messages"].append(content)
-    print(f"{session.get('name')} said: {data['data']}")
+    print(f"{name} said: {data.get('message')}")
 
 @socketio.on("disconnect")
 def disconnect():
@@ -150,11 +223,11 @@ def disconnect():
     name = session.get("name")
     leave_room(room)
     
-    # Remove the private key from in-memory storage
-    if name in private_keys:
-        del private_keys[name]
+    # Remove client data
+    clients_public_keys.pop(name, None)
+    client_counters.pop(name, None)
     
-    # delete room if no one is in it
+    # Update room members
     if room in rooms:
         rooms[room]["members"] -= 1
         if rooms[room]["members"] <= 0:
