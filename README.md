@@ -16,5 +16,7 @@ pip install flask
 
 ## new modifications
 pip install cryptography
-
+gpt 4o
 https://chatgpt.com/c/66fb8bce-e1a4-8013-b052-8093fd7cf64d
+gpt o1
+https://chatgpt.com/c/66fbac9d-a9d0-8013-835f-f71d39c7e262
