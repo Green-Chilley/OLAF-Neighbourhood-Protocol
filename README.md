@@ -8,3 +8,13 @@
 1. Open 2 tabs under the same url
 2. In one tab enter name and create room
 3. On the other tab, join the room using the room
+## Installations
+pip install pycryptodome
+pip install flack_socketio
+pip install flask
+
+
+## new modifications
+pip install cryptography
+
+https://chatgpt.com/c/66fb8bce-e1a4-8013-b052-8093fd7cf64d
