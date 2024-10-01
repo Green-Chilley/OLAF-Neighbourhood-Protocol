@@ -1,16 +1,11 @@
 {% extends 'base.html' %} {% block content %}
+
 <body>
     <div class="message-box">
         <h2>Chat Room: {{code}}</h2>
         <div class="messages" id="messages"></div>
         <div class="inputs">
-            <input 
-                type="text" 
-                rows="3" 
-                placeholder="Message" 
-                name="message" 
-                id="message" 
-            />
+            <input type="text" rows="3" placeholder="Message" name="message" id="message" />
             <button class="buttonRight" type="button" name="send" id="send-btn" onClick="sendMessage()">
                 Send
             </button>
@@ -19,16 +14,27 @@
 
     <script>
         var input = document.getElementById("message");
-        input.addEventListener("keypress", function(event) {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            document.getElementById("send-btn").click();
-          }
+        input.addEventListener("keypress", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                document.getElementById("send-btn").click();
+            }
         });
     </script>
 
     <script type="text/javascript">
+        var publicKeyPem = `{{ public_key_pem }}`;
         var socketio = io();
+
+        socketio.on('connect', () => {
+            // Send "hello" message with public key
+            socketio.emit('hello', {
+                "data": {
+                    "type": "hello",
+                    "public_key": publicKeyPem
+                }
+            });
+        });
 
         const messages = document.getElementById("messages");
 
@@ -60,9 +66,9 @@
         };
     </script>
     {% for msg in messages %}
-        <script type="text/javascript">
-            createMessage("{{msg.name}}", "{{msg.message}}");
-        </script>
+    <script type="text/javascript">
+        createMessage("{{msg.name}}", "{{msg.message}}");
+    </script>
     {% endfor %}
 </body>
 {% endblock %}

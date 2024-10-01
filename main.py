@@ -82,16 +82,21 @@ def room():
     if room is None or session.get("name") is None or room not in rooms:
         return redirect(url_for("home"))
     
-    return render_template("room.html", code=room, messages=rooms[room]["messages"])
+    return render_template(
+        "room.html",
+        code=room,
+        messages=rooms[room]["messages"],
+        public_key_pem=session.get("public_key_pem")
+    )
 
 # Handle client hello message
 @socketio.on("hello")
 def handle_hello(data):
     room = session.get("room")
     name = session.get("name")
-    public_key_pem = data.get("public_key")
+    public_key_pem = data.get("data", {}).get("public_key")
 
-    print(f"Received 'hello' event. Room: {room}, Name: {name}, Public Key: {public_key_pem}")  # Debug statement
+    print(f"Received 'hello' event. Room: {room}, Name: {name}, Public Key: {public_key_pem}")
 
     if not room or room not in rooms:
         print(f"Error: Room '{room}' not found or not set.")
@@ -110,7 +115,6 @@ def handle_hello(data):
 def connect(auth):
     room = session.get("room")
     name = session.get("name")
-    public_key_pem = session.get("public_key_pem")
 
     if not room or not name:
         return
@@ -122,9 +126,10 @@ def connect(auth):
     send({"name": name, "message": "has entered the room"}, to=room)
     rooms[room]["members"] += 1
 
-    if public_key_pem:
-        print(f"Emitting 'hello' message for {name} with public key.")  # Debug statement
-        socketio.emit("hello", {"public_key": public_key_pem}, to=room)
+    # Remove this block
+    # if public_key_pem:
+    #     print(f"Emitting 'hello' message for {name} with public key.")
+    #     socketio.emit("hello", {"public_key": public_key_pem}, to=room)
 
 @socketio.on("message")
 def message(data):
