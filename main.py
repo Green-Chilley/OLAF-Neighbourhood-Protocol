@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, session, redirect, url_for
-from flask_socketio import join_room, leave_room, send, emit, SocketIO
+from flask_socketio import join_room, leave_room, emit, SocketIO
 import random
 from string import ascii_uppercase
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
@@ -92,20 +92,20 @@ def handle_hello(message_payload):
         print(f"Missing room or name in session for session_id: {session_id}")
         return
 
-    # Add client to the clients dictionary if not already present
-    if session_id not in clients:
-        clients[session_id] = {'name': name,
-                               'public_key_pem': None, 'room': room}
-        join_room(room)
-        rooms[room]["members"] += 1
-        print(f"Rooms after {name} joined: {rooms}")
+    # VULNERABLE CODE: Allowing overwriting of existing clients
+    # Remove the check to prevent overwriting existing client entries
+    clients[session_id] = {'name': name,
+                           'public_key_pem': None, 'room': room}
+    join_room(room)
+    rooms[room]["members"] += 1
+    print(f"Rooms after {name} joined: {rooms}")
 
-        # Inform other clients
-        content = {
-            "sender": name,
-            "message": "has entered the room"
-        }
-        emit("public_message", content, to=room)
+    # Inform other clients
+    content = {
+        "sender": name,
+        "message": "has entered the room"
+    }
+    emit("public_message", content, to=room)
 
     data = message_payload.get("data")
     counter = message_payload.get("counter")
@@ -189,10 +189,14 @@ def handle_public_message(message_payload):
     # Retrieve sender's public key
     client_info = clients.get(session_id)
     public_key_pem = client_info.get('public_key_pem') if client_info else None
+
     if not public_key_pem:
         print(f"No public key found for {name}")
         return
 
+    # VULNERABLE CODE: Skipping signature verification
+    # The following lines are commented out to introduce the vulnerability
+    """
     # Load public key
     try:
         public_key = serialization.load_pem_public_key(
@@ -223,6 +227,7 @@ def handle_public_message(message_payload):
     except Exception as e:
         print(f"Signature verification failed for {name}: {e}")
         return
+    """
 
     # Check the counter
     last_counter = client_counters.get(session_id, 0)
