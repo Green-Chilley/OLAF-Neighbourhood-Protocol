@@ -310,8 +310,8 @@ def handle_chat_message(message_payload):
         print(f"Replay attack detected or invalid counter from {name}.")
         return
 
-    # Update stored counter
-    client_counters[name] = counter
+    # Update stored counter using session_id
+    client_counters[session_id] = counter
 
     # Send the message to the recipient and sender
     content = {

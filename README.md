@@ -3,20 +3,16 @@
 ## How to run server
 1. Head to directory where `main.py` is located.
 2. Type in `python main.py`
-3. Open the localhost to port 5000 thing
+3. CTRL + Click the localhost to port 5000 link in terminal to open the application in your browser
+
 ## Testing
 1. Open 2 tabs under the same url
 2. In one tab enter name and create room
-3. On the other tab, join the room using the room
+3. Click on the chat room code to copy to clipboard
+4. On the other tab, join the room using the room
+
 ## Installations
 pip install pycryptodome
 pip install flack_socketio
 pip install flask
-
-
-## new modifications
 pip install cryptography
-gpt 4o
-https://chatgpt.com/c/66fb8bce-e1a4-8013-b052-8093fd7cf64d
-gpt o1
-https://chatgpt.com/c/66fbac9d-a9d0-8013-835f-f71d39c7e262

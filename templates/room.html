@@ -1,22 +1,28 @@
 {% extends 'base.html' %}
 {% block content %}
+
 <body>
+    <header class="text-white p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">Chat Application</h1>
+        <button onclick="window.location.href='/'"
+            class="transition-all bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Home/Leave
+        </button>
+    </header>
     <div class="message-box">
-        <h2>Chat Room: {{code}}</h2>
-        <div class="messages" id="messages"></div>
+        <h2 id="chat-room-code" class="text-center text-2xl font-bold mb-2 hover:cursor-pointer"
+            onclick="copyToClipboard('{{code}}')">Chat
+            Room: {{code}}</h2>
+        <div class="messages min-h-[800px] rounded" id="messages"></div>
         <div class="inputs">
             <!-- Recipient selection dropdown -->
-            <select id="recipient">
+            <select id="recipient" class="rounded">
                 <option value="everyone">Everyone</option>
                 <!-- Options for other users will be populated dynamically -->
             </select>
-            <input 
-                type="text" 
-                placeholder="Message" 
-                name="message" 
-                id="message" 
-            />
-            <button class="buttonRight" type="button" name="send" id="send-btn" onClick="sendMessage()">
+            <input type="text" placeholder="Message" name="message" id="message" class="rounded" />
+            <button class="transition-all buttonRight bg-blue-500 hover:bg-blue-800 text-white font-bold rounded"
+                type="button" name="send" id="send-btn" onClick="sendMessage()">
                 Send
             </button>
         </div>
@@ -24,7 +30,26 @@
 
     <!-- Include Socket.IO library -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <!-- copy script -->
+    <script>
+        function copyToClipboard(code) {
+            // Create a temporary input element to copy the text
+            const tempInput = document.createElement('input');
+            document.body.appendChild(tempInput);
+            tempInput.value = code; // Set the value to the passed code
+            tempInput.select();
 
+            // Copy the text to clipboard
+            document.execCommand('copy');
+
+            // Remove the temporary input element
+            document.body.removeChild(tempInput);
+
+            // Optional: provide feedback to the user
+            alert('Code copied');
+        }
+    </script>
+    <!-- rest of the js -->
     <script>
         var socketio = io();
         let counter = 0; // Initialize counter
@@ -241,12 +266,12 @@
 
         // Load previous messages (if any)
         {% for msg in messages %}
-            createMessage("{{msg.sender}}", "{{msg.message}}");
+        createMessage("{{msg.sender}}", "{{msg.message}}");
         {% endfor %}
 
         // Handle 'Enter' key press to send message
         var input = document.getElementById("message");
-        input.addEventListener("keypress", function(event) {
+        input.addEventListener("keypress", function (event) {
             if (event.key === "Enter") {
                 event.preventDefault();
                 sendMessage();
@@ -261,6 +286,7 @@
             margin: 0 auto;
             padding: 10px;
         }
+
         .messages {
             height: 400px;
             overflow-y: scroll;
@@ -270,26 +296,34 @@
             background-color: black;
             color: white;
         }
+
         .inputs {
             display: flex;
             align-items: center;
         }
-        .inputs select, .inputs input[type="text"] {
+
+        .inputs select,
+        .inputs input[type="text"] {
             flex: 1;
             margin-right: 5px;
             padding: 8px;
+            color: black;
         }
+
         .inputs button {
             padding: 8px 12px;
         }
+
         .text {
             margin-bottom: 10px;
         }
+
         .text .muted {
             font-size: 0.8em;
             color: #888;
             margin-left: 10px;
         }
+
         .whisper {
             font-style: italic;
             color: gray;
