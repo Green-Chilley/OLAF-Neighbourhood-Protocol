@@ -29,8 +29,6 @@ pip install eventlet
     ```
 3. In the terminal, CTRL + Click the link to `localhost:5000` to open the application in your browser.
 
-> **Note**: If you want to use the code **without vulnerabilities**, please run the `main-no-vul.py` file instead of the default `main.py`.
-
 ## Testing
 1. Open two browser windows: one in regular mode and one in incognito mode.
 2. In one tab, enter a name and create a room.
@@ -49,29 +47,7 @@ pip install eventlet
 - `static/css/`: Contains `style.css` for styling the chat application.
 
 ## Vulnerabilities
-This code version intentionally includes two vulnerabilities to meet the assignment's requirements. These vulnerabilities are labelled in the code as "VULNERABLE CODE" for educational review.
-
-### **Vulnerability 1: Skipping Signature Verification in Public Messages**
-**Description**: In the `handle_public_message` function, the server skips the signature verification step, allowing any client to send messages without proper authentication.
-
-**Impact**:
-- **Impersonate Other Users**: An attacker can send messages on behalf of other users.
-- **Send Unauthorized Messages**: Messages are sent without verifying the sender's identity.
-- **Compromise Message Integrity**: Attackers can modify messages without detection.
-
-**Code Reference**:
-The skipped signature verification is commented out in the `handle_public_message` function in `main.py`.
-
-### **Vulnerability 2: Overwriting Public Keys in 'hello' Messages**
-**Description**: The `handle_hello` function allows clients to overwrite existing users' public keys. This means that an attacker can impersonate a user by sending a `hello` message with a different public key.
-
-**Impact**:
-- **Man-in-the-Middle Attack**: An attacker can intercept and alter communications.
-- **Impersonate Other Users**: The attacker can send messages that appear to come from another user.
-- **Eavesdropping**: Attackers can decrypt messages intended for the victim.
-
-**Code Reference**:
-The check preventing the overwriting of client entries has been removed in the `handle_hello` function in `main.py`.
+This code version intentionally includes two vulnerabilities to meet the assignment's requirements.
 
 ## Usage Notes
 - **Testing**: The vulnerabilities mentioned above should only be tested in a controlled environment for educational purposes. The code is not suitable for production use.
@@ -112,5 +88,15 @@ These screenshots provide a visual overview of the chat application's UI and its
 ## License
 This project is developed for educational purposes and is not intended for commercial use. 
 
+Certainly! Here's a more structured format for the contributors/authors section:
+
 ## Contributors/Authors
-Elliot Koh, Bryan Van, Leo Nguyen, Nathaniel Cordero
+
+- **Elliot Koh**
+- **Bryan Van**
+- **Leo Nguyen**
+- **Nathaniel Cordero**
+
+### Group Contact
+
+- **Discord ID**: proximobinks

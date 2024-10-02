@@ -92,8 +92,6 @@ def handle_hello(message_payload):
         print(f"Missing room or name in session for session_id: {session_id}")
         return
 
-    # VULNERABLE CODE: Allowing overwriting of existing clients
-    # Remove the check to prevent overwriting existing client entries
     clients[session_id] = {'name': name,
                            'public_key_pem': None, 'room': room}
     join_room(room)
@@ -193,41 +191,6 @@ def handle_public_message(message_payload):
     if not public_key_pem:
         print(f"No public key found for {name}")
         return
-
-    # VULNERABLE CODE: Skipping signature verification
-    # The following lines are commented out to introduce the vulnerability
-    """
-    # Load public key
-    try:
-        public_key = serialization.load_pem_public_key(
-            public_key_pem.encode('utf-8'),
-            backend=default_backend()
-        )
-    except Exception as e:
-        print(f"Failed to load public key for {name}: {e}")
-        return
-
-    # Prepare data for verification
-    data_string = canonicaljson.encode_canonical_json(data).decode('utf-8')
-    data_to_verify = (data_string + str(counter)).encode('utf-8')
-    signature = base64.b64decode(signature_b64)
-    print(f"Data to Verify for {name}: {data_string}{counter}")
-
-    # Verify signature
-    try:
-        public_key.verify(
-            signature,
-            data_to_verify,
-            asym_padding.PSS(
-                mgf=asym_padding.MGF1(hashes.SHA256()),
-                salt_length=32
-            ),
-            hashes.SHA256()
-        )
-    except Exception as e:
-        print(f"Signature verification failed for {name}: {e}")
-        return
-    """
 
     # Check the counter
     last_counter = client_counters.get(session_id, 0)
