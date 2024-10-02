@@ -49,6 +49,8 @@ pip install eventlet
 ## Vulnerabilities
 This code version intentionally includes two vulnerabilities to meet the assignment's requirements. These vulnerabilities are labelled in the code as "VULNERABLE CODE" for educational review.
 
+If you want to use the code **without vulnerabilities**, please run the `main-no-vul.py` file instead of the default `main.py`.
+
 ### **Vulnerability 1: Skipping Signature Verification in Public Messages**
 **Description**: In the `handle_public_message` function, the server skips the signature verification step, allowing any client to send messages without proper authentication.
 
@@ -62,8 +64,6 @@ The skipped signature verification is commented out in the `handle_public_messag
 
 ### **Vulnerability 2: Overwriting Public Keys in 'hello' Messages**
 **Description**: The `handle_hello` function allows clients to overwrite existing users' public keys. This means that an attacker can impersonate a user by sending a `hello` message with a different public key.
-
-If you want to use the code **without vulnerabilities**, please run the `main-no-vul.py` file instead of the default `main.py`.
 
 **Impact**:
 - **Man-in-the-Middle Attack**: An attacker can intercept and alter communications.
