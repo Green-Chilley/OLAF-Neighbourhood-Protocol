@@ -17,6 +17,8 @@ pip install flask
 pip install flask_socketio
 pip install cryptography
 pip install pycryptodome
+pip install canonicaljson
+pip install eventlet
 ```
 
 ## How to Run the Server
@@ -60,6 +62,8 @@ The skipped signature verification is commented out in the `handle_public_messag
 
 ### **Vulnerability 2: Overwriting Public Keys in 'hello' Messages**
 **Description**: The `handle_hello` function allows clients to overwrite existing users' public keys. This means that an attacker can impersonate a user by sending a `hello` message with a different public key.
+
+If you want to use the code **without vulnerabilities**, please run the `main-no-vul.py` file instead of the default `main.py`.
 
 **Impact**:
 - **Man-in-the-Middle Attack**: An attacker can intercept and alter communications.
