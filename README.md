@@ -29,6 +29,8 @@ pip install eventlet
     ```
 3. In the terminal, CTRL + Click the link to `localhost:5000` to open the application in your browser.
 
+> **Note**: If you want to use the code without vulnerabilities, please run the `main-no-vul.py` file instead of the default `main.py`.
+
 ## Testing
 1. Open two browser windows: one in regular mode and one in incognito mode.
 2. In one tab, enter a name and create a room.
@@ -48,8 +50,6 @@ pip install eventlet
 
 ## Vulnerabilities
 This code version intentionally includes two vulnerabilities to meet the assignment's requirements. These vulnerabilities are labelled in the code as "VULNERABLE CODE" for educational review.
-
-If you want to use the code **without vulnerabilities**, please run the `main-no-vul.py` file instead of the default `main.py`.
 
 ### **Vulnerability 1: Skipping Signature Verification in Public Messages**
 **Description**: In the `handle_public_message` function, the server skips the signature verification step, allowing any client to send messages without proper authentication.
