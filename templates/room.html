@@ -1,9 +1,15 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %}
+{% block content %}
 <body>
     <div class="message-box">
         <h2>Chat Room: {{code}}</h2>
         <div class="messages" id="messages"></div>
         <div class="inputs">
+            <!-- Recipient selection dropdown -->
+            <select id="recipient">
+                <option value="everyone">Everyone</option>
+                <!-- Options for other users will be populated dynamically -->
+            </select>
             <input 
                 type="text" 
                 placeholder="Message" 
@@ -24,114 +30,37 @@
         let counter = 0; // Initialize counter
         let privateKey;
         let publicKeyPem;
+        let clientsPublicKeys = {}; // Store public keys of other clients
+        let name = "{{ session.get('name') }}"; // Get current user's name
 
-        // Helper function to convert ArrayBuffer to Base64 string
-        function arrayBufferToBase64(buffer) {
-            let binary = '';
-            const bytes = new Uint8Array(buffer);
-            for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            return window.btoa(binary);
-        }
-
-        // Helper function to format PEM string
-        function formatPEM(pem) {
-            const pemHeader = "-----BEGIN PUBLIC KEY-----\n";
-            const pemFooter = "\n-----END PUBLIC KEY-----";
-            const pemBody = pem.match(/.{1,64}/g).join('\n');
-            return pemHeader + pemBody + pemFooter;
-        }
-
-        // Deterministic JSON stringify function
-        function deterministicStringify(obj) {
-            const replacer = (key, value) => {
-                if (value && typeof value === 'object' && !Array.isArray(value)) {
-                    const sortedObj = {};
-                    Object.keys(value).sort().forEach((k) => {
-                        sortedObj[k] = value[k];
-                    });
-                    return sortedObj;
+        // Function to update recipient list
+        function updateRecipientList(clients) {
+            const recipientSelect = document.getElementById('recipient');
+            // Clear existing options except 'Everyone'
+            recipientSelect.innerHTML = '<option value="everyone">Everyone</option>';
+            clients.forEach(client => {
+                if (client.name !== name) { // Exclude self
+                    const option = document.createElement('option');
+                    option.value = client.name;
+                    option.textContent = client.name;
+                    recipientSelect.appendChild(option);
                 }
-                return value;
-            };
-            return JSON.stringify(obj, replacer);
+            });
         }
 
-        // Function to generate RSA key pair
-        async function generateKeys() {
-            const keyPair = await window.crypto.subtle.generateKey(
-                {
-                    name: "RSA-PSS",
-                    modulusLength: 2048,
-                    publicExponent: new Uint8Array([1, 0, 1]),
-                    hash: "SHA-256",
-                },
-                true,
-                ["sign", "verify"]
-            );
-
-            privateKey = keyPair.privateKey;
-            const exportedPublicKey = await window.crypto.subtle.exportKey(
-                "spki",
-                keyPair.publicKey
-            );
-            const exportedAsBase64 = arrayBufferToBase64(exportedPublicKey);
-            publicKeyPem = formatPEM(exportedAsBase64);
-        }
-
-        // Function to sign data
-        async function signData(data) {
-            const encoder = new TextEncoder();
-            const dataString = deterministicStringify(data); // Use deterministic JSON
-            const dataToSign = encoder.encode(dataString + counter);
-            console.log("Data to Sign:", dataString + counter);
-            const signature = await window.crypto.subtle.sign(
-                {
-                    name: "RSA-PSS",
-                    saltLength: 32,
-                },
-                privateKey,
-                dataToSign
-            );
-            return arrayBufferToBase64(signature);
-        }
-
-        // Send 'hello' message to server
-        async function sendHello() {
-            counter++; // Increment counter for the hello message
-
-            const data = {
-                "public_key": publicKeyPem,
-                "type": "hello"
-            };
-
-            const signature = await signData(data);
-
-            const helloPayload = {
-                "data": data,
-                "counter": counter,
-                "signature": signature
-            };
-
-            console.log("Sending hello payload:", helloPayload);
-
-            socketio.emit('hello', helloPayload);
-        }
-
-        socketio.on('connect', async () => {
-            console.log("Socket connected:", socketio.connected);
-            await generateKeys();
-            await sendHello();
+        // Listen for client list updates from the server
+        socketio.on('client_list_update', (data) => {
+            // Update clientsPublicKeys and recipient list
+            clientsPublicKeys = data.clientsPublicKeys;
+            updateRecipientList(data.clients);
         });
 
-        const messages = document.getElementById("messages");
-
-        function createMessage(name, msg) {
+        // Function to create a message in the chat window
+        function createMessage(senderName, msg, isWhisper = false) {
             const content = `
-            <div class="text">
+            <div class="text ${isWhisper ? 'whisper' : ''}">
                 <span>
-                    <strong>${name}</strong>: ${msg}
+                    <strong>${senderName}${isWhisper ? ' (whisper)' : ''}</strong>: ${msg}
                 </span>
                 <span class="muted">
                     ${new Date().toLocaleString()}
@@ -139,60 +68,116 @@
             </div>
             `;
 
+            const messages = document.getElementById("messages");
             messages.innerHTML += content;
             messages.scrollTop = messages.scrollHeight; // Auto-scroll to the bottom
         }
 
-        // Listen for message events from the server
-        socketio.on("message", (data) => {
-            console.log("Received message:", data);
-            createMessage(data.name, data.message);
-        });
-
-        // Declare sendMessage as a function in the global scope
+        // Function to send a message
         async function sendMessage() {
-            console.log("sendMessage function called");
             const messageInput = document.getElementById("message");
+            const recipientSelect = document.getElementById("recipient");
+            const recipient = recipientSelect.value;
+
             if (messageInput.value === "") {
-                console.log("Message input is empty. Exiting sendMessage.");
                 return;
             }
 
             counter++; // Increment the counter
 
-            const data = {
-                "message": messageInput.value,
-                "type": "chat"
-            };
+            if (recipient === "everyone") {
+                // Send public message
+                const data = {
+                    "type": "public_chat",
+                    "sender": name,
+                    "message": messageInput.value
+                };
 
-            const signature = await signData(data);
+                // Send the message to the server
+                socketio.emit("public_message", data);
+            } else {
+                // Send encrypted whisper message
+                // For now, we'll just simulate sending a whisper
+                const data = {
+                    "type": "chat",
+                    "sender": name,
+                    "recipient": recipient,
+                    "message": messageInput.value
+                };
 
-            const messagePayload = {
-                "data": data,
-                "counter": counter,
-                "signature": signature
-            };
+                // Send the message to the server
+                socketio.emit("chat_message", data);
+            }
 
-            console.log("Sending message payload:", messagePayload);
-
-            socketio.emit("message", messagePayload);
             messageInput.value = "";
         }
+
+        // Handle received public messages
+        socketio.on("public_message", (data) => {
+            createMessage(data.sender, data.message);
+        });
+
+        // Handle received chat messages (whispers)
+        socketio.on("chat_message", (data) => {
+            if (data.recipient === name || data.sender === name) {
+                createMessage(data.sender, data.message, true);
+            }
+        });
+
+        // Load previous messages (if any)
+        {% for msg in messages %}
+            createMessage("{{msg.name}}", "{{msg.message}}");
+        {% endfor %}
 
         // Handle 'Enter' key press to send message
         var input = document.getElementById("message");
         input.addEventListener("keypress", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
-                console.log("Enter key pressed");
                 sendMessage();
             }
         });
-
-        // Load previous messages
-        {% for msg in messages %}
-            createMessage("{{msg.name}}", "{{msg.message}}");
-        {% endfor %}
     </script>
+
+    <!-- Include some CSS to style whispers differently -->
+    <style>
+        .message-box {
+            width: 60%;
+            margin: 0 auto;
+            padding: 10px;
+        }
+        .messages {
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ddd;
+            padding: 5px;
+            margin-bottom: 10px;
+            background-color: black;
+        }
+        .inputs {
+            display: flex;
+            align-items: center;
+        }
+        .inputs select, .inputs input[type="text"] {
+            flex: 1;
+            margin-right: 5px;
+            padding: 8px;
+        }
+        .inputs button {
+            padding: 8px 12px;
+        }
+        .text {
+            margin-bottom: 10px;
+        }
+        .text .muted {
+            font-size: 0.8em;
+            color: #888;
+            margin-left: 10px;
+        }
+        .whisper {
+            font-style: italic;
+            color: gray;
+        }
+    </style>
 </body>
 {% endblock %}
