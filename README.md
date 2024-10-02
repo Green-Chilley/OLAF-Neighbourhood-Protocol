@@ -29,7 +29,7 @@ pip install eventlet
     ```
 3. In the terminal, CTRL + Click the link to `localhost:5000` to open the application in your browser.
 
-> **Note**: If you want to use the code without vulnerabilities, please run the `main-no-vul.py` file instead of the default `main.py`.
+> **Note**: If you want to use the code **without vulnerabilities**, please run the `main-no-vul.py` file instead of the default `main.py`.
 
 ## Testing
 1. Open two browser windows: one in regular mode and one in incognito mode.
