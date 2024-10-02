@@ -47,7 +47,19 @@ pip install eventlet
 - `static/css/`: Contains `style.css` for styling the chat application.
 
 ## Vulnerabilities
-This code version intentionally includes two vulnerabilities to meet the assignment's requirements.
+This code version intentionally includes two vulnerabilities to meet the assignment's requirements. These vulnerabilities are labelled in the code as "VULNERABLE CODE" for educational review.
+
+### **Vulnerability 1**
+**Description**: In the `handle_public_message` function
+
+**Code Reference**:
+The vulnerability is introduced as the code is commented out in the `handle_public_message` function in `main.py`.
+
+### **Vulnerability 2**
+**Description**: The `handle_hello` function.
+
+**Code Reference**:
+The check preventing the overwriting of client entries has been removed in the `handle_hello` function in `main.py`.
 
 ## Usage Notes
 - **Testing**: The vulnerabilities mentioned above should only be tested in a controlled environment for educational purposes. The code is not suitable for production use.
