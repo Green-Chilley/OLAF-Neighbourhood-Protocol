@@ -33,6 +33,106 @@
         let clientsPublicKeys = {}; // Store public keys of other clients
         let name = "{{ session.get('name') }}"; // Get current user's name
 
+        // Helper function to convert ArrayBuffer to Base64 string
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
+        // Helper function to format PEM string
+        function formatPEM(pem) {
+            const pemHeader = "-----BEGIN PUBLIC KEY-----\n";
+            const pemFooter = "\n-----END PUBLIC KEY-----";
+            const pemBody = pem.match(/.{1,64}/g).join('\n');
+            return pemHeader + pemBody + pemFooter;
+        }
+
+        // Deterministic JSON stringify function
+        function deterministicStringify(obj) {
+            const replacer = (key, value) => {
+                if (value && typeof value === 'object' && !Array.isArray(value)) {
+                    const sortedObj = {};
+                    Object.keys(value).sort().forEach((k) => {
+                        sortedObj[k] = value[k];
+                    });
+                    return sortedObj;
+                }
+                return value;
+            };
+            return JSON.stringify(obj, replacer);
+        }
+
+        // Function to generate RSA key pair
+        async function generateKeys() {
+            const keyPair = await window.crypto.subtle.generateKey(
+                {
+                    name: "RSA-PSS",
+                    modulusLength: 2048,
+                    publicExponent: new Uint8Array([1, 0, 1]),
+                    hash: "SHA-256",
+                },
+                true,
+                ["sign", "verify"]
+            );
+
+            privateKey = keyPair.privateKey;
+            const exportedPublicKey = await window.crypto.subtle.exportKey(
+                "spki",
+                keyPair.publicKey
+            );
+            const exportedAsBase64 = arrayBufferToBase64(exportedPublicKey);
+            publicKeyPem = formatPEM(exportedAsBase64);
+        }
+
+        // Function to sign data
+        async function signData(data) {
+            const encoder = new TextEncoder();
+            const dataString = deterministicStringify(data); // Use deterministic JSON
+            const dataToSign = encoder.encode(dataString + counter);
+            console.log("Data to Sign:", dataString + counter);
+            const signature = await window.crypto.subtle.sign(
+                {
+                    name: "RSA-PSS",
+                    saltLength: 32,
+                },
+                privateKey,
+                dataToSign
+            );
+            return arrayBufferToBase64(signature);
+        }
+
+        // Send 'hello' message to server
+        async function sendHello() {
+            counter++; // Increment counter for the hello message
+
+            const data = {
+                "public_key": publicKeyPem,
+                "type": "hello"
+            };
+
+            const signature = await signData(data);
+
+            const helloPayload = {
+                "data": data,
+                "counter": counter,
+                "signature": signature
+            };
+
+            console.log("Sending hello payload:", helloPayload);
+
+            socketio.emit('hello', helloPayload);
+        }
+
+        socketio.on('connect', async () => {
+            console.log("Socket connected:", socketio.connected);
+            await generateKeys();
+            await sendHello();
+        });
+
         // Function to update recipient list
         function updateRecipientList(clients) {
             const recipientSelect = document.getElementById('recipient');
@@ -93,11 +193,18 @@
                     "message": messageInput.value
                 };
 
+                const signature = await signData(data);
+
+                const messagePayload = {
+                    "data": data,
+                    "counter": counter,
+                    "signature": signature
+                };
+
                 // Send the message to the server
-                socketio.emit("public_message", data);
+                socketio.emit("public_message", messagePayload);
             } else {
                 // Send encrypted whisper message
-                // For now, we'll just simulate sending a whisper
                 const data = {
                     "type": "chat",
                     "sender": name,
@@ -105,8 +212,16 @@
                     "message": messageInput.value
                 };
 
+                const signature = await signData(data);
+
+                const messagePayload = {
+                    "data": data,
+                    "counter": counter,
+                    "signature": signature
+                };
+
                 // Send the message to the server
-                socketio.emit("chat_message", data);
+                socketio.emit("chat_message", messagePayload);
             }
 
             messageInput.value = "";
@@ -126,7 +241,7 @@
 
         // Load previous messages (if any)
         {% for msg in messages %}
-            createMessage("{{msg.name}}", "{{msg.message}}");
+            createMessage("{{msg.sender}}", "{{msg.message}}");
         {% endfor %}
 
         // Handle 'Enter' key press to send message
@@ -153,6 +268,7 @@
             padding: 5px;
             margin-bottom: 10px;
             background-color: black;
+            color: white;
         }
         .inputs {
             display: flex;

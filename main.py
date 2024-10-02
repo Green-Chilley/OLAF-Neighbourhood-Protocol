@@ -26,7 +26,7 @@ def generate_unique_code(length):
             code += random.choice(ascii_uppercase)
         if code not in rooms:
             break
-    return code  # Corrected indentation here
+    return code
 
 
 @app.route("/", methods=["POST", "GET"])
@@ -73,32 +73,32 @@ def room():
 
 @socketio.on("connect")
 def connect():
-    room = session.get("room")
-    name = session.get("name")
     session_id = request.sid
-
-    if not room or not name:
-        return
-    if room not in rooms:
-        leave_room(room)
-        return
-
-    # Add client to the clients dictionary
-    clients[session_id] = {'name': name, 'public_key_pem': None, 'room': room}
-    join_room(room)
-    rooms[room]["members"] += 1
-
-    # Use 'emit' with 'public_message' event
-    emit("public_message", {"sender": name, "message": "has entered the room"}, to=room)
-    emit_client_list_update(room)
-    print(f"{name} has entered the room {room}")
+    print(f"Client connected: {session_id}")
 
 
 @socketio.on("hello")
 def handle_hello(message_payload):
-    room = session.get("room")
-    name = session.get("name")
     session_id = request.sid
+    name = session.get("name")
+    room = session.get("room")
+
+    if not room or not name:
+        return
+
+    # Add client to the clients dictionary if not already present
+    if session_id not in clients:
+        clients[session_id] = {'name': name,
+                               'public_key_pem': None, 'room': room}
+        join_room(room)
+        rooms[room]["members"] += 1
+
+        # Inform other clients
+        content = {
+            "sender": name,
+            "message": "has entered the room"
+        }
+        emit("public_message", content, to=room)
 
     data = message_payload.get("data")
     counter = message_payload.get("counter")
@@ -144,14 +144,15 @@ def handle_hello(message_payload):
         print(f"Hello signature verification failed for {name}: {e}")
         return
 
-    # Check the counter
-    last_counter = client_counters.get(name, 0)
+    # Check the counter using session_id
+    last_counter = client_counters.get(session_id, 0)
     if counter <= last_counter:
-        print(f"Replay attack detected or invalid counter in hello from {name}.")
+        print(
+            f"Replay attack detected or invalid counter in hello from {name}.")
         return
 
     # Update stored counter
-    client_counters[name] = counter
+    client_counters[session_id] = counter
 
     # Store the client's public key
     clients[session_id]['public_key_pem'] = public_key_pem
@@ -162,12 +163,68 @@ def handle_hello(message_payload):
 
 
 @socketio.on("public_message")
-def handle_public_message(data):
+def handle_public_message(message_payload):
     room = session.get("room")
     name = session.get("name")
+    session_id = request.sid
 
     if room not in rooms:
         return
+
+    data = message_payload.get("data")
+    counter = message_payload.get("counter")
+    signature_b64 = message_payload.get("signature")
+
+    if not data or counter is None or not signature_b64:
+        print("Invalid message format.")
+        return
+
+    # Retrieve sender's public key
+    client_info = clients.get(session_id)
+    public_key_pem = client_info.get('public_key_pem') if client_info else None
+    if not public_key_pem:
+        print(f"No public key found for {name}")
+        return
+
+    # Load public key
+    try:
+        public_key = serialization.load_pem_public_key(
+            public_key_pem.encode('utf-8'),
+            backend=default_backend()
+        )
+    except Exception as e:
+        print(f"Failed to load public key for {name}: {e}")
+        return
+
+    # Prepare data for verification
+    data_string = canonicaljson.encode_canonical_json(data).decode('utf-8')
+    data_to_verify = (data_string + str(counter)).encode('utf-8')
+    signature = base64.b64decode(signature_b64)
+    print(f"Data to Verify for {name}: {data_string}{counter}")
+
+    # Verify signature
+    try:
+        public_key.verify(
+            signature,
+            data_to_verify,
+            asym_padding.PSS(
+                mgf=asym_padding.MGF1(hashes.SHA256()),
+                salt_length=32
+            ),
+            hashes.SHA256()
+        )
+    except Exception as e:
+        print(f"Signature verification failed for {name}: {e}")
+        return
+
+    # Check the counter
+    last_counter = client_counters.get(session_id, 0)
+    if counter <= last_counter:
+        print(f"Replay attack detected or invalid counter from {name}.")
+        return
+
+    # Update stored counter
+    client_counters[session_id] = counter
 
     # Broadcast the public message to all clients in the room
     content = {
@@ -180,12 +237,20 @@ def handle_public_message(data):
 
 
 @socketio.on("chat_message")
-def handle_chat_message(data):
+def handle_chat_message(message_payload):
     room = session.get("room")
     name = session.get("name")
     session_id = request.sid
 
     if room not in rooms:
+        return
+
+    data = message_payload.get("data")
+    counter = message_payload.get("counter")
+    signature_b64 = message_payload.get("signature")
+
+    if not data or counter is None or not signature_b64:
+        print("Invalid message format.")
         return
 
     recipient_name = data.get("recipient")
@@ -200,6 +265,53 @@ def handle_chat_message(data):
     if not recipient_sid:
         print(f"Recipient {recipient_name} not found in room {room}.")
         return
+
+    # Retrieve sender's public key
+    client_info = clients.get(session_id)
+    public_key_pem = client_info.get('public_key_pem') if client_info else None
+    if not public_key_pem:
+        print(f"No public key found for {name}")
+        return
+
+    # Load public key
+    try:
+        public_key = serialization.load_pem_public_key(
+            public_key_pem.encode('utf-8'),
+            backend=default_backend()
+        )
+    except Exception as e:
+        print(f"Failed to load public key for {name}: {e}")
+        return
+
+    # Prepare data for verification
+    data_string = canonicaljson.encode_canonical_json(data).decode('utf-8')
+    data_to_verify = (data_string + str(counter)).encode('utf-8')
+    signature = base64.b64decode(signature_b64)
+    print(f"Data to Verify for {name}: {data_string}{counter}")
+
+    # Verify signature
+    try:
+        public_key.verify(
+            signature,
+            data_to_verify,
+            asym_padding.PSS(
+                mgf=asym_padding.MGF1(hashes.SHA256()),
+                salt_length=32
+            ),
+            hashes.SHA256()
+        )
+    except Exception as e:
+        print(f"Signature verification failed for {name}: {e}")
+        return
+
+    # Check the counter
+    last_counter = client_counters.get(session_id, 0)
+    if counter <= last_counter:
+        print(f"Replay attack detected or invalid counter from {name}.")
+        return
+
+    # Update stored counter
+    client_counters[name] = counter
 
     # Send the message to the recipient and sender
     content = {
@@ -221,7 +333,7 @@ def disconnect():
         room = client_info['room']
         leave_room(room)
         clients.pop(session_id, None)
-        client_counters.pop(name, None)
+        client_counters.pop(session_id, None)
 
         # Update room members
         if room in rooms:
@@ -229,10 +341,17 @@ def disconnect():
             if rooms[room]["members"] <= 0:
                 del rooms[room]
 
-        # Use 'emit' with 'public_message' event
-        emit("public_message", {"sender": name, "message": "has left the room"}, to=room)
-        emit_client_list_update(room)
         print(f"{name} has left the room {room}")
+
+        # Inform other clients
+        content = {
+            "sender": name,
+            "message": "has left the room"
+        }
+        emit("public_message", content, to=room)
+
+        # Send updated client list to all clients in the room
+        emit_client_list_update(room)
 
 
 def emit_client_list_update(room):
@@ -244,7 +363,8 @@ def emit_client_list_update(room):
             client_list.append({'name': client['name']})
             if client['public_key_pem']:
                 clients_public_keys[client['name']] = client['public_key_pem']
-    socketio.emit('client_list_update', {'clients': client_list, 'clientsPublicKeys': clients_public_keys}, room=room)
+    socketio.emit('client_list_update', {
+                  'clients': client_list, 'clientsPublicKeys': clients_public_keys}, room=room)
 
 
 if __name__ == "__main__":
