@@ -88,8 +88,6 @@ These screenshots provide a visual overview of the chat application's UI and its
 ## License
 This project is developed for educational purposes and is not intended for commercial use. 
 
-Certainly! Here's a more structured format for the contributors/authors section:
-
 ## Contributors/Authors
 
 - **Elliot Koh**
