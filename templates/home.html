@@ -1,27 +1,50 @@
-{% extends 'base.html' %} {% block content %}
-<body>
-    <form method="post" class="buttons">
-        <h2>Enter The Chat Room</h2>
-        <div>
-            <label>Name:</label>
-            <input 
-                type="text" 
-                placeholder="Pick a name!" 
-                name="name" 
-                value="{{name}}"
-                id="name"
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-center min-h-[800px]">
+    <form method="post" class="bg-gray-800 p-8 rounded-lg w-full max-w-md">
+        <h2 class="text-2xl font-semibold mb-6 text-center">Enter The Chat Room</h2>
+        {% if error %}
+        <div class="bg-red-500 text-white p-3 rounded mb-4">
+            {{ error }}
+        </div>
+        {% endif %}
+        <div class="mb-4">
+            <label class="block mb-2">Name:</label>
+            <input
+                type="text"
+                name="name"
+                value="{{ name }}"
+                placeholder="Pick a name!"
+                class="w-full p-3 rounded bg-gray-700 text-white focus:outline-none"
+                required
             />
         </div>
-        <div class="join">
-            <input id="inputHome" type="text" placeholder="Room Code" name="code" value="{{code}}"/>
-            <button class="buttonRight" type="submit" name="join">Join a Room</button>
+        <div class="mb-4">
+            <label class="block mb-2">Room Code:</label>
+            <input
+                type="text"
+                name="code"
+                value="{{ code }}"
+                placeholder="Room Code"
+                class="w-full p-3 rounded bg-gray-700 text-white focus:outline-none"
+            />
         </div>
-        <button type="submit" name="create" class="create-btn">Create a Room</button>
-        {% if error %}
-        <ul>
-            <li>{{error}}</li>
-        </ul>
-        {% endif %}
+        <div class="flex items-center justify-between">
+            <button
+                type="submit"
+                name="join"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded focus:outline-none w-full mr-2 transition-all"
+            >
+                Join a Room
+            </button>
+            <button
+                type="submit"
+                name="create"
+                class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded focus:outline-none w-full ml-2 transition-all"
+            >
+                Create a Room
+            </button>
+        </div>
     </form>
-</body>
+</div>
 {% endblock %}
