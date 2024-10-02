@@ -61,8 +61,13 @@ def home():
 @app.route("/room")
 def room():
     room = session.get("room")
-    if room is None or session.get("name") is None or room not in rooms:
+    name = session.get("name")
+    if room is None or name is None:
         return redirect(url_for("home"))
+
+    # Ensure the room exists in rooms
+    if room not in rooms:
+        rooms[room] = {"members": 0, "messages": []}
 
     return render_template(
         "room.html",
@@ -84,6 +89,7 @@ def handle_hello(message_payload):
     room = session.get("room")
 
     if not room or not name:
+        print(f"Missing room or name in session for session_id: {session_id}")
         return
 
     # Add client to the clients dictionary if not already present
@@ -92,6 +98,7 @@ def handle_hello(message_payload):
                                'public_key_pem': None, 'room': room}
         join_room(room)
         rooms[room]["members"] += 1
+        print(f"Rooms after {name} joined: {rooms}")
 
         # Inform other clients
         content = {
@@ -338,8 +345,10 @@ def disconnect():
         # Update room members
         if room in rooms:
             rooms[room]["members"] -= 1
-            if rooms[room]["members"] <= 0:
-                del rooms[room]
+            # Comment out room deletion
+            # if rooms[room]["members"] <= 0:
+            #     del rooms[room]
+            print(f"Rooms after {name} disconnected: {rooms}")
 
         print(f"{name} has left the room {room}")
 
