@@ -75,13 +75,38 @@ The check preventing the overwriting of client entries has been removed in the `
 - **Whisper**: To send a private message, select a recipient from the dropdown menu.
 
 ## Screenshots
-*(If applicable, add screenshots of the chat application UI to provide a visual overview of its interface.)*
+
+### 1. Home Screen
+The home screen allows users to pick a name and either create a new room or join an existing one using a room code.
+
+![Home Screen](./screenshots/home.jpg)
+
+### 2. User A Creating a Room
+User A creates a room and sends a public message to everyone in the room: "Hello everyone from A!"
+
+![User A](./screenshots/user-a.jpg)
+
+### 3. User B Whispering to User A
+User B joins the room and whispers to User A: "hi this is a test whisper from B." Only User A can see this message.
+
+![User B](./screenshots/user-b.jpg)
+
+### 4. User C Joining and Messaging
+User C joins the room, sends a public message: "hello everyone from C," and then whispers to User B: "hello this is a test whisper from C."
+
+![User C](./screenshots/user-c.jpg)
+
+### Explanation
+- As shown in the screenshots, **public messages** (e.g., "Hello everyone from A" and "Hello everyone from C") are visible to all users in the room.
+- **Whispers** are private messages that can only be seen by the intended recipient:
+  - User A does not receive User C's whisper to User B.
+  - Similarly, User C does not receive User B's whisper to User A.
+- This illustrates how the application maintains **message privacy** for whispers, ensuring only the sender and intended recipient can see the content of private messages.
+
+These screenshots provide a visual overview of the chat application's UI and its handling of public messages and whispers, highlighting its capability to manage private communications securely within a room.
 
 ## License
 This project is developed for educational purposes and is not intended for commercial use. 
 
 ## Contributors/Authors
-Elliot Koh
-Bryan Van
-Leo Nguyen
-Nathaniel Cordero
+Elliot Koh, Bryan Van, Leo Nguyen, Nathaniel Cordero
