@@ -28,12 +28,31 @@
         </div>
     </div>
 
+    <!-- Connect Rooms Form -->
+    <div class="connect-rooms">
+        <h3>Connect Rooms</h3>
+        <input type="text" id="room1" placeholder="Enter First Room Code" class="rounded" />
+        <input type="text" id="room2" placeholder="Enter Second Room Code" class="rounded" />
+        <button id="connect-rooms-btn"
+            class="transition-all bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+            Connect Rooms
+        </button>
+    </div>
+
+    <!-- File Transfer Section -->
+    <div class="file-transfer">
+        <input type="file" id="file-input" class="rounded" />
+        <button id="send-file-btn"
+            class="transition-all bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
+            Send File
+        </button>
+    </div>
+
     <!-- Include Socket.IO library -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
-    <!-- copy script -->
+    <!-- Copy to Clipboard Script -->
     <script>
         function copyToClipboard(code) {
-            // Create a temporary input element to copy the text
             const tempInput = document.createElement('input');
             document.body.appendChild(tempInput);
             tempInput.value = code; // Set the value to the passed code
@@ -49,7 +68,7 @@
             alert('Code copied');
         }
     </script>
-    <!-- rest of the js -->
+    <!-- Main JavaScript -->
     <script>
         var socketio = io();
         let counter = 0; // Initialize counter
@@ -254,7 +273,18 @@
 
         // Handle received public messages
         socketio.on("public_message", (data) => {
-            createMessage(data.sender, data.message);
+            if (data.message && data.message.includes('are now connected')) {
+                // Display room connection notification
+                createMessage('System', data.message);
+            } else if (data.message && data.message.includes('has entered the room')) {
+                // Display user join notification
+                createMessage('System', data.sender + ' ' + data.message);
+            } else if (data.message && data.message.includes('has left the room')) {
+                // Display user leave notification
+                createMessage('System', data.sender + ' ' + data.message);
+            } else {
+                createMessage(data.sender, data.message);
+            }
         });
 
         // Handle received chat messages (whispers)
@@ -277,9 +307,123 @@
                 sendMessage();
             }
         });
+
+        // Function to connect two rooms
+        function connectRooms() {
+            const room1 = document.getElementById('room1').value.trim();
+            const room2 = document.getElementById('room2').value.trim();
+
+            if (!room1 || !room2) {
+                alert("Please enter both room codes.");
+                return;
+            }
+
+            // Emit 'connect_rooms' event to the server
+            socketio.emit('connect_rooms', { room1: room1, room2: room2 });
+        }
+
+        // Add event listener to the 'Connect Rooms' button
+        document.getElementById('connect-rooms-btn').addEventListener('click', connectRooms);
+
+        // Listen for error messages from the server
+        socketio.on('error', function(data) {
+            alert("Error: " + data.message);
+        });
+
+        // Function to send a file
+        async function sendFile() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Please select a file to send.");
+                return;
+            }
+
+            // Limit file size (e.g., 5 MB)
+            const maxSize = 5 * 1024 * 1024; // 5 MB
+            if (file.size > maxSize) {
+                alert("File is too large. Maximum size is 5 MB.");
+                return;
+            }
+
+            // Read the file as ArrayBuffer
+            const arrayBuffer = await file.arrayBuffer();
+            const base64Data = arrayBufferToBase64(arrayBuffer);
+
+            counter++; // Increment the counter
+
+            const data = {
+                "type": "file_transfer",
+                "sender": name,
+                "file_name": file.name,
+                "file_type": file.type,
+                "file_data": base64Data
+            };
+
+            const signature = await signData(data);
+
+            const messagePayload = {
+                "data": data,
+                "counter": counter,
+                "signature": signature
+            };
+
+            // Send the file data to the server
+            socketio.emit("file_transfer", messagePayload);
+
+            // Display the file in the sender's chat window
+            createFileMessage(name, file.name, URL.createObjectURL(file));
+
+            // Clear the file input
+            fileInput.value = "";
+        }
+
+        // Event listener for the 'Send File' button
+        document.getElementById('send-file-btn').addEventListener('click', sendFile);
+
+        // Function to create a file message in the chat window
+        function createFileMessage(senderName, fileName, fileUrl, isWhisper = false) {
+            const content = `
+            <div class="text ${isWhisper ? 'whisper' : ''}">
+                <span>
+                    <strong>${senderName}${isWhisper ? ' (whisper)' : ''}</strong>:
+                    <a href="${fileUrl}" download="${fileName}">${fileName}</a>
+                </span>
+                <span class="muted">
+                    ${new Date().toLocaleString()}
+                </span>
+            </div>
+            `;
+
+            const messages = document.getElementById("messages");
+            messages.innerHTML += content;
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // Handle received file transfers
+        socketio.on("file_transfer", (data) => {
+            const { sender, file_name, file_data, file_type } = data;
+
+            // Convert base64 data back to Blob
+            const byteCharacters = atob(file_data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: file_type });
+
+            // Create a URL for the Blob
+            const fileUrl = URL.createObjectURL(blob);
+
+            // Display the file message
+            createFileMessage(sender, file_name, fileUrl);
+        });
+
     </script>
 
-    <!-- Include some CSS to style whispers differently -->
+    <!-- Include CSS styles -->
     <style>
         .message-box {
             width: 60%;
@@ -327,6 +471,40 @@
         .whisper {
             font-style: italic;
             color: gray;
+        }
+
+        /* Styles for the Connect Rooms form */
+        .connect-rooms {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .connect-rooms input {
+            margin: 5px;
+            padding: 8px;
+            width: 200px;
+            color: black;
+        }
+
+        .connect-rooms button {
+            margin-top: 10px;
+            padding: 8px 12px;
+        }
+
+        /* Styles for the File Transfer section */
+        .file-transfer {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .file-transfer input,
+        .file-transfer button {
+            margin: 5px;
+        }
+
+        .file-transfer input {
+            padding: 8px;
+            color: black;
         }
     </style>
 </body>

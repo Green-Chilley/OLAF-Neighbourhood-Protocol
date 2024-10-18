@@ -12,7 +12,9 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = "hjksa"
 socketio = SocketIO(app)
 
+# Updated rooms to include 'connected_rooms' for each room
 rooms = {}
+
 client_counters = {}  # To store the last counter value for each client
 
 # Store clients with their session IDs, names, and public keys
@@ -47,7 +49,7 @@ def home():
         room = code
         if create != False:
             room = generate_unique_code(4)
-            rooms[room] = {"members": 0, "messages": []}
+            rooms[room] = {"members": 0, "messages": [], "connected_rooms": set()}
         elif code not in rooms:
             return render_template("home.html", error="Room does not exist.", code=code, name=name)
 
@@ -67,7 +69,7 @@ def room():
 
     # Ensure the room exists in rooms
     if room not in rooms:
-        rooms[room] = {"members": 0, "messages": []}
+        rooms[room] = {"members": 0, "messages": [], "connected_rooms": set()}
 
     return render_template(
         "room.html",
@@ -103,7 +105,7 @@ def handle_hello(message_payload):
         "sender": name,
         "message": "has entered the room"
     }
-    emit("public_message", content, to=room)
+    emit("public_message", content, room=room)
 
     data = message_payload.get("data")
     counter = message_payload.get("counter")
@@ -201,12 +203,12 @@ def handle_public_message(message_payload):
     # Update stored counter
     client_counters[session_id] = counter
 
-    # Broadcast the public message to all clients in the room
+    # Broadcast the public message to all clients in connected rooms
     content = {
         "sender": name,
         "message": data.get("message")
     }
-    emit("public_message", content, to=room)
+    propagate_message_to_connected_rooms(room, content)
     rooms[room]["messages"].append(content)
     print(f"Public message from {name}: {data.get('message')}")
 
@@ -299,6 +301,81 @@ def handle_chat_message(message_payload):
     print(f"Whisper from {name} to {recipient_name}: {data.get('message')}")
 
 
+@socketio.on("file_transfer")
+def handle_file_transfer(message_payload):
+    room = session.get("room")
+    name = session.get("name")
+    session_id = request.sid
+
+    if room not in rooms:
+        return
+
+    data = message_payload.get("data")
+    counter = message_payload.get("counter")
+    signature_b64 = message_payload.get("signature")
+
+    if not data or counter is None or not signature_b64:
+        print("Invalid file transfer message format.")
+        return
+
+    # Retrieve sender's public key
+    client_info = clients.get(session_id)
+    public_key_pem = client_info.get('public_key_pem') if client_info else None
+
+    if not public_key_pem:
+        print(f"No public key found for {name}")
+        return
+
+    # Check the counter
+    last_counter = client_counters.get(session_id, 0)
+    if counter <= last_counter:
+        print(f"Replay attack detected or invalid counter from {name}.")
+        return
+
+    # Update stored counter
+    client_counters[session_id] = counter
+
+    # Verify signature
+    public_key = serialization.load_pem_public_key(
+        public_key_pem.encode('utf-8'),
+        backend=default_backend()
+    )
+    data_string = canonicaljson.encode_canonical_json(data).decode('utf-8')
+    data_to_verify = (data_string + str(counter)).encode('utf-8')
+    signature = base64.b64decode(signature_b64)
+
+    try:
+        public_key.verify(
+            signature,
+            data_to_verify,
+            asym_padding.PSS(
+                mgf=asym_padding.MGF1(hashes.SHA256()),
+                salt_length=32
+            ),
+            hashes.SHA256()
+        )
+    except Exception as e:
+        print(f"Signature verification failed for {name}: {e}")
+        return
+
+    # Limit file size (e.g., 5 MB)
+    max_size = 5 * 1024 * 1024  # 5 MB
+    file_data_b64 = data.get("file_data")
+    if len(base64.b64decode(file_data_b64)) > max_size:
+        print(f"File size exceeds the maximum allowed limit from {name}.")
+        return
+
+    # Broadcast the file to all clients in connected rooms
+    content = {
+        "sender": name,
+        "file_name": data.get("file_name"),
+        "file_type": data.get("file_type"),
+        "file_data": file_data_b64
+    }
+    propagate_file_to_connected_rooms(room, content)
+    print(f"File received from {name}: {data.get('file_name')}")
+
+
 @socketio.on("disconnect")
 def disconnect():
     session_id = request.sid
@@ -313,9 +390,6 @@ def disconnect():
         # Update room members
         if room in rooms:
             rooms[room]["members"] -= 1
-            # Comment out room deletion
-            # if rooms[room]["members"] <= 0:
-            #     del rooms[room]
             print(f"Rooms after {name} disconnected: {rooms}")
 
         print(f"{name} has left the room {room}")
@@ -325,7 +399,7 @@ def disconnect():
             "sender": name,
             "message": "has left the room"
         }
-        emit("public_message", content, to=room)
+        emit("public_message", content, room=room)
 
         # Send updated client list to all clients in the room
         emit_client_list_update(room)
@@ -342,6 +416,59 @@ def emit_client_list_update(room):
                 clients_public_keys[client['name']] = client['public_key_pem']
     socketio.emit('client_list_update', {
                   'clients': client_list, 'clientsPublicKeys': clients_public_keys}, room=room)
+
+
+@socketio.on('connect_rooms')
+def handle_connect_rooms(data):
+    room1 = data.get('room1')
+    room2 = data.get('room2')
+    session_id = request.sid
+    name = session.get("name")
+
+    # Check if both rooms exist
+    if room1 in rooms and room2 in rooms:
+        rooms[room1]['connected_rooms'].add(room2)
+        rooms[room2]['connected_rooms'].add(room1)
+        print(f"{name} connected rooms {room1} and {room2}")
+
+        # Inform users in both rooms about the new connection
+        content = {
+            "message": f"Rooms {room1} and {room2} are now connected."
+        }
+        emit("public_message", content, room=room1)
+        emit("public_message", content, room=room2)
+    else:
+        print(
+            f"Cannot connect rooms {room1} and {room2}: One or both rooms do not exist.")
+        emit("error", {"message": "One or both rooms do not exist."}, room=session_id)
+
+
+def propagate_message_to_connected_rooms(origin_room, content, visited_rooms=None):
+    if visited_rooms is None:
+        visited_rooms = set()
+    if origin_room in visited_rooms:
+        return
+    visited_rooms.add(origin_room)
+    # Emit the message to the origin room
+    emit('public_message', content, room=origin_room)
+    # Recursively propagate to connected rooms
+    for connected_room in rooms[origin_room].get('connected_rooms', set()):
+        propagate_message_to_connected_rooms(
+            connected_room, content, visited_rooms)
+
+
+def propagate_file_to_connected_rooms(origin_room, content, visited_rooms=None):
+    if visited_rooms is None:
+        visited_rooms = set()
+    if origin_room in visited_rooms:
+        return
+    visited_rooms.add(origin_room)
+    # Emit the file to the origin room
+    emit('file_transfer', content, room=origin_room)
+    # Recursively propagate to connected rooms
+    for connected_room in rooms[origin_room].get('connected_rooms', set()):
+        propagate_file_to_connected_rooms(
+            connected_room, content, visited_rooms)
 
 
 if __name__ == "__main__":
