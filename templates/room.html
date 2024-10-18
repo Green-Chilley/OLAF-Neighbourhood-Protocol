@@ -41,12 +41,30 @@
 
     <!-- File Transfer Section -->
     <div class="file-transfer">
-        <input type="file" id="file-input" class="rounded" />
+        <input type="file" id="file-input" class="rounded" style="display: none;" />
+        <label for="file-input"
+            style="cursor: pointer; background-color: #6b46c1; color: white; font-weight: bold; padding: 10px 16px; border-radius: 4px; transition: background-color 0.3s; display: inline-block;">
+            Choose File
+        </label>
+        <span id="file-name" class="mx-[10px] text-white">No file chosen</span>
         <button id="send-file-btn"
             class="transition-all bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
             Send File
         </button>
     </div>
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const fileName = document.getElementById('file-name');
+
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files.length > 0) {
+                fileName.textContent = fileInput.files[0].name;
+            } else {
+                fileName.textContent = 'No file chosen';
+            }
+        });
+
+    </script>
 
     <!-- Include Socket.IO library -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
@@ -326,7 +344,7 @@
         document.getElementById('connect-rooms-btn').addEventListener('click', connectRooms);
 
         // Listen for error messages from the server
-        socketio.on('error', function(data) {
+        socketio.on('error', function (data) {
             alert("Error: " + data.message);
         });
 

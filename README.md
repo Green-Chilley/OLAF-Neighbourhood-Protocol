@@ -149,19 +149,19 @@ The home screen allows users to pick a name and either create a new room or join
 
 The chat room interface includes messaging, room connectivity, and file transfer features.
 
-![Chat Room](./screenshots/chat_room.jpg)
+![Chat Room](./screenshots/chat_room.png)
 
 ### 3. Room Connectivity
 
 Users can connect two rooms using their codes, allowing messages and files to be shared across them.
 
-![Room Connectivity](./screenshots/room_connectivity.jpg)
+![Room Connectivity](./screenshots/room_connectivity.png)
 
 ### 4. File Transfer
 
 Users can send and receive files within the chat room.
 
-![File Transfer](./screenshots/file_transfer.jpg)
+![File Transfer](./screenshots/file_transfer.png)
 
 ### Explanation
 
