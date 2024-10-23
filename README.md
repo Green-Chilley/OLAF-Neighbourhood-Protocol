@@ -137,8 +137,6 @@ This implementation includes intentional vulnerabilities introduced as part of a
 
 ## Screenshots
 
-*(Update the screenshots as needed to reflect the new features.)*
-
 ### 1. Home Screen
 
 The home screen allows users to pick a name and either create a new room or join an existing one using a room code.
